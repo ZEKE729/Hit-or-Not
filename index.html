@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hit or Not</title>
+    <link rel="stylesheet" href="css/style.css">
+    <!-- 预连接 Supabase 加速 -->
+    <link rel="preconnect" href="https://your-project.supabase.co">
+</head>
+<body>
+    <!-- 首页视图 -->
+    <div id="homeView" class="view">
+        <h1>✦ Hit or Not</h1>
+        <div class="home-text">
+            <p>你好，这里是月芽浠</p>
+            <p>Hit or Not是一个在线的数据管理项目</p>
+            <p>所有的更改将实时保存</p>
+        </div>
+        <input type="text" id="qqInput" inputmode="numeric" placeholder="输入 QQ 号 回车">
+        <div class="footer">当前策略：⚡ | 当前主题：极简黑 | 开发：月芽浠、AQZ | v1.3 | 数据托管 Supabase</div>
+    </div>
+
+    <!-- 详情页视图 -->
+    <div id="detailView" class="view hidden">
+        <div class="detail-header">
+            <span id="backBtn" title="返回">←</span>
+            <span id="qqDisplay"></span>
+        </div>
+        <div class="textbox-container">
+            <textarea id="contentText" rows="4" readonly placeholder="暂无内容，点击编辑添加..."></textarea>
+            <button id="editBtn">编辑</button>
+        </div>
+        <div class="footer">当前策略：⚡ | 当前主题：极简黑 | 开发：月芽浠、AQZ | v1.3 | 数据托管 Supabase</div>
+    </div>
+
+    <!-- 引入 Supabase SDK (使用 ES module 方式，避免全局污染) -->
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>
