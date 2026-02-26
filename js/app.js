@@ -29,11 +29,12 @@ const listContainer = document.getElementById('listContainer');
 let currentQQ = null;
 let isEditing = false;
 let saveInProgress = false;
-const dataCache = new Map(); // 简单内存缓存
+const dataCache = new Map(); // 单个QQ内容缓存
 
-// 新增：记录是否从列表页进入详情，以及列表滚动位置
-let fromListView = false;
-let savedListScrollTop = 0;
+// 列表相关状态
+let listData = null;              // 缓存的所有列表数据
+let listScrollTop = 0;            // 保存的滚动位置
+let fromListToDetail = false;     // 是否从列表进入详情
 
 // ==================== 视图切换函数 ====================
 const showHome = () => {
@@ -47,8 +48,7 @@ const showHome = () => {
     contentText.value = '';
     contentText.readOnly = true;
     editBtn.textContent = '编辑';
-    // 重置列表来源标记
-    fromListView = false;
+    fromListToDetail = false;      // 回到首页清除标记
 };
 
 const showDetail = (qq) => {
@@ -66,8 +66,18 @@ const showList = () => {
     homeView.classList.add('hidden');
     detailView.classList.add('hidden');
     listView.classList.remove('hidden');
-    // 加载列表数据（内部会根据 fromListView 决定是否恢复滚动）
-    fetchAllQQData();
+
+    if (listData) {
+        // 有缓存，直接渲染
+        renderList(listData);
+        // 恢复滚动位置（需要在渲染后执行）
+        setTimeout(() => {
+            listContainer.scrollTop = listScrollTop;
+        }, 0);
+    } else {
+        // 无缓存，请求数据
+        fetchAllQQData();
+    }
 };
 
 // ==================== 数据操作 ====================
@@ -122,6 +132,11 @@ const saveContent = async () => {
             return;
         }
         dataCache.set(currentQQ, newContent);
+        // 同时更新列表缓存中的内容预览（保持一致性）
+        if (listData) {
+            const item = listData.find(i => i.qq === currentQQ);
+            if (item) item.content = newContent;
+        }
         isEditing = false;
         contentText.readOnly = true;
         editBtn.textContent = '编辑';
@@ -148,13 +163,10 @@ const fetchAllQQData = async () => {
             listContainer.innerHTML = '<div style="color:#f66; text-align:center;">加载失败，请重试</div>';
             return;
         }
-        renderList(data || []);
-        
-        // 新增：如果是从列表页返回，恢复滚动位置
-        if (fromListView && savedListScrollTop) {
-            listContainer.scrollTop = savedListScrollTop;
-            fromListView = false; // 重置标记，避免下次误恢复
-        }
+        listData = data || []; // 存入缓存
+        renderList(listData);
+        // 如果有保存的滚动位置，恢复（但首次加载时可能没有，所以设为0）
+        listContainer.scrollTop = listScrollTop;
     } catch (err) {
         console.error('获取列表异常:', err);
         listContainer.innerHTML = '<div style="color:#f66; text-align:center;">发生异常</div>';
@@ -181,9 +193,9 @@ const renderList = (items) => {
     document.querySelectorAll('.list-item').forEach(el => {
         el.addEventListener('click', () => {
             const qq = el.dataset.qq;
-            // 新增：保存当前滚动位置，并标记从列表页进入
-            savedListScrollTop = listContainer.scrollTop;
-            fromListView = true;
+            // 保存滚动位置，并标记从列表进入
+            listScrollTop = listContainer.scrollTop;
+            fromListToDetail = true;
             currentQQ = qq;
             showDetail(qq);
             loadQQContent(qq);
@@ -204,8 +216,7 @@ qqInput.addEventListener('keypress', (e) => {
             alert('QQ号应为纯数字');
             return;
         }
-        // 新增：从首页进入，清除列表来源标记
-        fromListView = false;
+        fromListToDetail = false; // 从首页进入，清除标记
         currentQQ = rawQQ;
         showDetail(currentQQ);
         loadQQContent(currentQQ);
@@ -215,9 +226,9 @@ qqInput.addEventListener('input', (e) => {
     e.target.value = e.target.value.replace(/[^\d]/g, '');
 });
 
-// 返回按钮（详情页返回）—— 修改：根据来源决定返回首页还是列表
+// 返回按钮（详情页返回）
 backBtn.addEventListener('click', () => {
-    if (fromListView) {
+    if (fromListToDetail) {
         showList(); // 返回列表页
     } else {
         showHome();
@@ -225,10 +236,15 @@ backBtn.addEventListener('click', () => {
 });
 
 // 列表页返回按钮（始终回首页）
-backFromListBtn.addEventListener('click', showHome);
+backFromListBtn.addEventListener('click', () => {
+    fromListToDetail = false; // 从列表页直接返回首页，清除标记
+    showHome();
+});
 
 // 查看在案人员按钮
-listBtn.addEventListener('click', showList);
+listBtn.addEventListener('click', () => {
+    showList();
+});
 
 // 编辑/保存按钮
 editBtn.addEventListener('click', async () => {
