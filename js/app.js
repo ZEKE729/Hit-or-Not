@@ -1,12 +1,9 @@
-// 使用 ES6 模块，便于维护和扩展
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'; // 使用 esm.sh CDN
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-// ==================== 配置 ====================
-// Supabase 项目信息
+// ==================== 配置====================
 const SUPABASE_URL = 'https://jyskkcjwpcoohyzupngk.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_uSKzxiyt1MjGArOacNW8tQ_MXogPbYQ';
 
-// 初始化 Supabase 客户端
 let supabase;
 try {
     supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -18,22 +15,29 @@ try {
 // ==================== DOM 元素 ====================
 const homeView = document.getElementById('homeView');
 const detailView = document.getElementById('detailView');
+const listView = document.getElementById('listView');
 const qqInput = document.getElementById('qqInput');
 const backBtn = document.getElementById('backBtn');
+const backFromListBtn = document.getElementById('backFromListBtn');
+const listBtn = document.getElementById('listBtn');
 const qqDisplay = document.getElementById('qqDisplay');
 const contentText = document.getElementById('contentText');
 const editBtn = document.getElementById('editBtn');
+const listContainer = document.getElementById('listContainer');
 
 // ==================== 状态管理 ====================
-let currentQQ = null;          // 当前查看的QQ号
-let isEditing = false;         // 是否处于编辑模式
-let saveInProgress = false;    // 防止重复提交
+let currentQQ = null;
+let isEditing = false;
+let saveInProgress = false;
+const dataCache = new Map(); // 简单内存缓存
 
-// ==================== 工具函数 ====================
+// ==================== 视图切换函数 ====================
 const showHome = () => {
-    detailView.classList.add('hidden');
     homeView.classList.remove('hidden');
+    detailView.classList.add('hidden');
+    listView.classList.add('hidden');
     qqInput.value = '';
+    // 重置详情状态
     currentQQ = null;
     isEditing = false;
     contentText.value = '';
@@ -44,6 +48,7 @@ const showHome = () => {
 const showDetail = (qq) => {
     homeView.classList.add('hidden');
     detailView.classList.remove('hidden');
+    listView.classList.add('hidden');
     qqDisplay.textContent = qq;
     // 重置编辑状态
     isEditing = false;
@@ -51,74 +56,66 @@ const showDetail = (qq) => {
     editBtn.textContent = '编辑';
 };
 
-// 加载数据 (带缓存优化)
-let dataCache = new Map(); // 简单内存缓存
+const showList = () => {
+    homeView.classList.add('hidden');
+    detailView.classList.add('hidden');
+    listView.classList.remove('hidden');
+    // 加载列表数据
+    fetchAllQQData();
+};
+
+// ==================== 数据操作 ====================
+// 加载单个QQ的内容
 const loadQQContent = async (qq) => {
     if (!supabase) return;
-    
-    // 先从缓存读取
     if (dataCache.has(qq)) {
         contentText.value = dataCache.get(qq);
         return;
     }
-
     try {
         const { data, error } = await supabase
             .from('qq_data')
             .select('content')
             .eq('qq', qq)
             .maybeSingle();
-
         if (error) {
             console.error('查询失败:', error);
             alert('数据加载失败，请稍后重试');
             return;
         }
-
         const content = data?.content || '';
         contentText.value = content;
-        dataCache.set(qq, content); // 存入缓存
+        dataCache.set(qq, content);
     } catch (err) {
         console.error('加载异常:', err);
         alert('发生异常，无法加载数据');
     }
 };
 
-// 保存数据 (带乐观锁/防并发)
+// 保存当前QQ的内容
 const saveContent = async () => {
     if (!currentQQ || !supabase) return;
     if (saveInProgress) {
         alert('正在保存中，请稍候...');
         return;
     }
-
     const newContent = contentText.value;
-
-    // 简单前端校验
-    if (newContent.length > 500) { // 限制长度，避免滥用
+    if (newContent.length > 500) {
         alert('内容过长，请限制在500字以内');
         return;
     }
-
     saveInProgress = true;
-    editBtn.disabled = true; // 防止多次点击
-
+    editBtn.disabled = true;
     try {
-        // 使用 upsert，如果有并发，最后写入的会覆盖 (对于极简场景足够)
         const { error } = await supabase
             .from('qq_data')
             .upsert({ qq: currentQQ, content: newContent }, { onConflict: 'qq' });
-
         if (error) {
             console.error('保存失败:', error);
             alert('保存失败，请重试');
             return;
         }
-
-        // 更新缓存
         dataCache.set(currentQQ, newContent);
-
-        // 退出编辑状态
         isEditing = false;
         contentText.readOnly = true;
         editBtn.textContent = '编辑';
@@ -131,8 +128,57 @@ const saveContent = async () => {
     }
 };
 
+// 获取所有QQ数据（用于列表页）
+const fetchAllQQData = async () => {
+    if (!supabase) return;
+    // 显示加载中提示（可优化）
+    listContainer.innerHTML = '<div style="color:#555; text-align:center;">加载中...</div>';
+    try {
+        const { data, error } = await supabase
+            .from('qq_data')
+            .select('qq, content')
+            .order('qq', { ascending: true }); // 按QQ号排序
+        if (error) {
+            console.error('获取列表失败:', error);
+            listContainer.innerHTML = '<div style="color:#f66; text-align:center;">加载失败，请重试</div>';
+            return;
+        }
+        renderList(data || []);
+    } catch (err) {
+        console.error('获取列表异常:', err);
+        listContainer.innerHTML = '<div style="color:#f66; text-align:center;">发生异常</div>';
+    }
+};
+
+// 渲染列表
+const renderList = (items) => {
+    if (items.length === 0) {
+        listContainer.innerHTML = '<div style="color:#555; text-align:center;">暂无在案人员</div>';
+        return;
+    }
+    const html = items.map(item => {
+        const preview = item.content ? (item.content.length > 30 ? item.content.slice(0, 30) + '…' : item.content) : '（空）';
+        return `
+            <div class="list-item" data-qq="${item.qq}">
+                <div class="list-item-qq">${item.qq}</div>
+                <div class="list-item-preview">${preview}</div>
+            </div>
+        `;
+    }).join('');
+    listContainer.innerHTML = html;
+    // 为每个列表项添加点击事件
+    document.querySelectorAll('.list-item').forEach(el => {
+        el.addEventListener('click', () => {
+            const qq = el.dataset.qq;
+            currentQQ = qq;
+            showDetail(qq);
+            loadQQContent(qq);
+        });
+    });
+};
+
 // ==================== 事件绑定 ====================
-// 输入框回车：数字校验 + 跳转
+// 首页输入框回车
 qqInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') {
         const rawQQ = qqInput.value.trim();
@@ -149,39 +195,39 @@ qqInput.addEventListener('keypress', (e) => {
         loadQQContent(currentQQ);
     }
 });
-
-// 输入框实时过滤非数字（提升体验）
 qqInput.addEventListener('input', (e) => {
     e.target.value = e.target.value.replace(/[^\d]/g, '');
 });
 
-// 返回首页
+// 返回按钮（详情页返回首页）
 backBtn.addEventListener('click', showHome);
 
-// 编辑/保存切换
+// 列表页返回按钮
+backFromListBtn.addEventListener('click', showHome);
+
+// 查看在案人员按钮
+listBtn.addEventListener('click', showList);
+
+// 编辑/保存按钮
 editBtn.addEventListener('click', async () => {
     if (!currentQQ) {
-        alert('QQ号丢失，请返回重新搜索');
+        alert('错误，请返回重新搜索...唔...QQ号丢失了吗...');
         return;
     }
-
     if (!isEditing) {
-        // 进入编辑模式
         isEditing = true;
         contentText.readOnly = false;
         editBtn.textContent = '保存';
         contentText.focus();
     } else {
-        // 保存
         await saveContent();
     }
 });
 
-// 可选：在编辑时按 ESC 取消编辑 (提升体验)
+// 按ESC取消编辑
 contentText.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && isEditing) {
-        // 恢复为之前的内容 (从缓存或重新加载)
-        loadQQContent(currentQQ); // 重新加载丢弃未保存更改
+        loadQQContent(currentQQ); // 丢弃更改，重新加载
         isEditing = false;
         contentText.readOnly = true;
         editBtn.textContent = '编辑';
@@ -189,5 +235,5 @@ contentText.addEventListener('keydown', (e) => {
     }
 });
 
-// 初始化
+// 初始化：显示首页
 showHome();

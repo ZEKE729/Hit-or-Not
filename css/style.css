@@ -176,3 +176,90 @@ textarea[readonly] {
     #qqDisplay { font-size: 1.5rem; }
     .detail-header { gap: 0.3rem; }
 }
+
+/* ===== v1.4首页按钮 ===== */
+.list-button {
+    background: transparent;
+    border: 1px solid #555;
+    color: #ddd;
+    padding: 0.5rem 1rem;
+    font-size: 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-top: 0.5rem;
+}
+.list-button:hover {
+    border-color: #3a9eff;
+    color: #fff;
+    background: #111;
+}
+
+/* ===== v1.4列表页 ===== */
+.list-header {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 1rem;
+    color: #ccc;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #333;
+    margin-bottom: 1rem;
+    /* 头部固定，不随滚动消失 */
+    flex-shrink: 0;
+}
+#backFromListBtn {
+    font-size: 2rem;
+    cursor: pointer;
+    color: #888;
+    transition: all 0.15s;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    user-select: none;
+}
+#backFromListBtn:hover {
+    color: #fff;
+    background-color: #222;
+}
+.list-container {
+    width: 100%;
+    max-height: 60vh;        /* 限制高度，超出滚动 */
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding-right: 0.5rem;
+}
+.list-item {
+    background: #111;
+    border: 1px solid #333;
+    border-radius: 4px;
+    padding: 0.8rem;
+    cursor: pointer;
+    transition: background 0.15s;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+.list-item:hover {
+    background: #1a1a1a;
+    border-color: #3a9eff;
+}
+.list-item-qq {
+    font-size: 1.2rem;
+    font-weight: 500;
+    color: #fff;
+}
+.list-item-preview {
+    font-size: 0.9rem;
+    color: #aaa;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
