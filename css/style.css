@@ -263,3 +263,58 @@ textarea[readonly] {
     text-overflow: ellipsis;
     max-width: 100%;
 }
+
+/* ===== v1.5 上次更改时间 ===== */
+.edit-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    margin-top: 0.2rem;
+    margin-bottom: 0.2rem;
+    padding: 0 0.2rem;
+    color: #888;
+    font-size: 0.8rem;
+}
+
+.last-updated {
+    color: #666;
+}
+
+/* 调整编辑按钮样式（从绝对定位改为普通行内块） */
+#editBtn {
+    background: #1e1e1e;
+    border: 1px solid #444;
+    color: #ddd;
+    padding: 0.2rem 0.8rem;
+    font-size: 0.75rem;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.5px;
+    position: static; /* 取消绝对定位 */
+    width: auto;
+}
+
+#editBtn:hover {
+    background: #333;
+    border-color: #3a9eff;
+    color: #fff;
+}
+
+/* 调整文本框内边距（移除右侧预留空间） */
+textarea {
+    width: 100%;
+    background: #111;
+    border: 1px solid #333;
+    color: #e0e0e0;
+    font-size: 1rem;
+    padding: 1rem; /* 统一内边距 */
+    border-radius: 4px;
+    resize: vertical;
+    outline: none;
+    font-family: inherit;
+    transition: border 0.2s;
+}
+
+/* 确保原有其他样式不受影响 */

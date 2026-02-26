@@ -30,10 +30,13 @@
             <span id="backBtn" title="返回">←</span>
             <span id="qqDisplay"></span>
         </div>
-        <div class="textbox-container">
-            <textarea id="contentText" rows="4" readonly placeholder="暂无内容，点击编辑添加..."></textarea>
+        <!-- v不知道多少：时间显示与编辑按钮同一行 -->
+        <div class="edit-header">
+            <span id="lastUpdated" class="last-updated"></span>
             <button id="editBtn">编辑</button>
         </div>
+        <!-- v不知道多少+1：文本框 不再包含按钮，内边距恢复为标准值 -->
+        <textarea id="contentText" rows="4" readonly placeholder="暂无内容，点击编辑添加..."></textarea>
         <div class="footer">当前策略：⚡|当前主题：极简黑|开发：月芽浠、AQZ|v1.3|数据托管：Supabase</div>
     </div>
 

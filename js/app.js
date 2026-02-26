@@ -23,6 +23,7 @@ const listBtn = document.getElementById('listBtn');
 const qqDisplay = document.getElementById('qqDisplay');
 const contentText = document.getElementById('contentText');
 const editBtn = document.getElementById('editBtn');
+const lastUpdatedSpan = document.getElementById('lastUpdated'); // 新增
 const listContainer = document.getElementById('listContainer');
 
 // ==================== 状态管理 ====================
@@ -36,6 +37,24 @@ let listData = null;              // 缓存的所有列表数据
 let listScrollTop = 0;            // 保存的滚动位置
 let fromListToDetail = false;     // 是否从列表进入详情
 
+// ==================== 工具函数 ====================
+const formatDateTime = (isoString) => {
+    if (!isoString) return '';
+    const date = new Date(isoString);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${year}.${month}.${day} ${hours}:${minutes}`;
+};
+
+const updateLastUpdated = (isoString) => {
+    if (lastUpdatedSpan) {
+        lastUpdatedSpan.textContent = isoString ? `上次更改：${formatDateTime(isoString)}` : '';
+    }
+};
+
 // ==================== 视图切换函数 ====================
 const showHome = () => {
     homeView.classList.remove('hidden');
@@ -48,7 +67,8 @@ const showHome = () => {
     contentText.value = '';
     contentText.readOnly = true;
     editBtn.textContent = '编辑';
-    fromListToDetail = false;      // 回到首页清除标记
+    updateLastUpdated(null); // 清空时间
+    fromListToDetail = false;
 };
 
 const showDetail = (qq) => {
@@ -60,6 +80,7 @@ const showDetail = (qq) => {
     isEditing = false;
     contentText.readOnly = true;
     editBtn.textContent = '编辑';
+    // 时间会在 loadQQContent 中更新
 };
 
 const showList = () => {
@@ -68,14 +89,11 @@ const showList = () => {
     listView.classList.remove('hidden');
 
     if (listData) {
-        // 有缓存，直接渲染
         renderList(listData);
-        // 恢复滚动位置（需要在渲染后执行）
         setTimeout(() => {
             listContainer.scrollTop = listScrollTop;
         }, 0);
     } else {
-        // 无缓存，请求数据
         fetchAllQQData();
     }
 };
@@ -84,14 +102,11 @@ const showList = () => {
 // 加载单个QQ的内容
 const loadQQContent = async (qq) => {
     if (!supabase) return;
-    if (dataCache.has(qq)) {
-        contentText.value = dataCache.get(qq);
-        return;
-    }
+    // 即使有缓存，也需要查询时间（时间会变），所以每次都请求完整数据
     try {
         const { data, error } = await supabase
             .from('qq_data')
-            .select('content')
+            .select('content, updated_at')
             .eq('qq', qq)
             .maybeSingle();
         if (error) {
@@ -99,9 +114,16 @@ const loadQQContent = async (qq) => {
             alert('数据加载失败，请稍后重试');
             return;
         }
-        const content = data?.content || '';
-        contentText.value = content;
-        dataCache.set(qq, content);
+        if (data) {
+            contentText.value = data.content || '';
+            dataCache.set(qq, data.content || '');
+            updateLastUpdated(data.updated_at);
+        } else {
+            // 新QQ号，无记录
+            contentText.value = '';
+            dataCache.set(qq, '');
+            updateLastUpdated(null);
+        }
     } catch (err) {
         console.error('加载异常:', err);
         alert('发生异常，无法加载数据');
@@ -123,19 +145,25 @@ const saveContent = async () => {
     saveInProgress = true;
     editBtn.disabled = true;
     try {
-        const { error } = await supabase
+        // 使用 .select() 返回更新后的记录，包含 updated_at
+        const { data, error } = await supabase
             .from('qq_data')
-            .upsert({ qq: currentQQ, content: newContent }, { onConflict: 'qq' });
+            .upsert({ qq: currentQQ, content: newContent }, { onConflict: 'qq' })
+            .select();
         if (error) {
             console.error('保存失败:', error);
             alert('保存失败，请重试');
             return;
         }
-        dataCache.set(currentQQ, newContent);
-        // 同时更新列表缓存中的内容预览（保持一致性）
-        if (listData) {
-            const item = listData.find(i => i.qq === currentQQ);
-            if (item) item.content = newContent;
+        if (data && data[0]) {
+            const updatedRecord = data[0];
+            dataCache.set(currentQQ, updatedRecord.content);
+            updateLastUpdated(updatedRecord.updated_at);
+            // 同时更新列表缓存中的内容预览
+            if (listData) {
+                const item = listData.find(i => i.qq === currentQQ);
+                if (item) item.content = updatedRecord.content;
+            }
         }
         isEditing = false;
         contentText.readOnly = true;
@@ -163,9 +191,8 @@ const fetchAllQQData = async () => {
             listContainer.innerHTML = '<div style="color:#f66; text-align:center;">加载失败，请重试</div>';
             return;
         }
-        listData = data || []; // 存入缓存
+        listData = data || [];
         renderList(listData);
-        // 如果有保存的滚动位置，恢复（但首次加载时可能没有，所以设为0）
         listContainer.scrollTop = listScrollTop;
     } catch (err) {
         console.error('获取列表异常:', err);
@@ -189,11 +216,9 @@ const renderList = (items) => {
         `;
     }).join('');
     listContainer.innerHTML = html;
-    // 为每个列表项添加点击事件
     document.querySelectorAll('.list-item').forEach(el => {
         el.addEventListener('click', () => {
             const qq = el.dataset.qq;
-            // 保存滚动位置，并标记从列表进入
             listScrollTop = listContainer.scrollTop;
             fromListToDetail = true;
             currentQQ = qq;
@@ -204,7 +229,6 @@ const renderList = (items) => {
 };
 
 // ==================== 事件绑定 ====================
-// 首页输入框回车
 qqInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') {
         const rawQQ = qqInput.value.trim();
@@ -216,7 +240,7 @@ qqInput.addEventListener('keypress', (e) => {
             alert('QQ号应为纯数字');
             return;
         }
-        fromListToDetail = false; // 从首页进入，清除标记
+        fromListToDetail = false;
         currentQQ = rawQQ;
         showDetail(currentQQ);
         loadQQContent(currentQQ);
@@ -226,30 +250,24 @@ qqInput.addEventListener('input', (e) => {
     e.target.value = e.target.value.replace(/[^\d]/g, '');
 });
 
-// 返回按钮（详情页返回）
 backBtn.addEventListener('click', () => {
     if (fromListToDetail) {
-        showList(); // 返回列表页
+        showList();
     } else {
         showHome();
     }
 });
 
-// 列表页返回按钮（始终回首页）
 backFromListBtn.addEventListener('click', () => {
-    fromListToDetail = false; // 从列表页直接返回首页，清除标记
+    fromListToDetail = false;
     showHome();
 });
 
-// 查看在案人员按钮
-listBtn.addEventListener('click', () => {
-    showList();
-});
+listBtn.addEventListener('click', showList);
 
-// 编辑/保存按钮
 editBtn.addEventListener('click', async () => {
     if (!currentQQ) {
-        alert('QQ号丢失，请返回重新搜索');
+        alert('EOR，请返回重新搜索');
         return;
     }
     if (!isEditing) {
@@ -262,10 +280,9 @@ editBtn.addEventListener('click', async () => {
     }
 });
 
-// 按ESC取消编辑
 contentText.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && isEditing) {
-        loadQQContent(currentQQ); // 丢弃更改，重新加载
+        loadQQContent(currentQQ);
         isEditing = false;
         contentText.readOnly = true;
         editBtn.textContent = '编辑';
@@ -273,5 +290,5 @@ contentText.addEventListener('keydown', (e) => {
     }
 });
 
-// 初始化：显示首页
+// 初始化
 showHome();
